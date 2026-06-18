@@ -1,4 +1,6 @@
 import os
+import io
+import csv
 import json as json_module
 import requests
 
@@ -8,11 +10,11 @@ BASELINE_MONTH = "2026M01"
 def get_house_prices():
     payload = {
         "table": "EJ131",
-        "format": "JSON",
+        "format": "CSV",
         "variables": [
-            {"code": "REGION", "values": ["084"]},        # Region Hovedstaden
-            {"code": "EJENDOMSKATE", "values": ["0111"]}, # Enfamiliehuse
-            {"code": "BNØGLE", "values": ["3"]},          # Gennemsnitspris pr. ejendom (1000 kr)
+            {"code": "REGION", "values": ["084"]},
+            {"code": "EJENDOMSKATE", "values": ["0111"]},
+            {"code": "BNØGLE", "values": ["3"]},
             {"code": "Tid", "values": ["*"]},
         ],
     }
@@ -21,11 +23,16 @@ def get_house_prices():
         print("DST fejl:", r.status_code, r.text)
     r.raise_for_status()
 
-    rows = {
-        row["key"][3]: int(row["value"])
-        for row in r.json()["data"]
-        if row["value"] not in (None, "", ".")
-    }
+    reader = csv.DictReader(io.StringIO(r.text), delimiter=";")
+    rows = {}
+    for row in reader:
+        tid = row.get("TID", row.get("tid", ""))
+        val = row.get("INDHOLD", row.get("indhold", "")).strip().replace(".", "")
+        if tid and val and val not in ("", "."):
+            try:
+                rows[tid] = int(val)
+            except ValueError:
+                pass
 
     latest_month = sorted(rows.keys())[-1]
     latest_price = rows[latest_month]
