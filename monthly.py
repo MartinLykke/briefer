@@ -1,35 +1,42 @@
 import os
 import json as json_module
 import requests
-from datetime import datetime
 
-DST_API = "https://api.statbank.dk/v1/data"
-BASELINE_QUARTER = "2025K4"  # Nærmeste kvartal til 01-01-2026
+BASELINE_MONTH = "2026M01"
 
 
 def get_house_prices():
     payload = {
-        "table": "EJDPRI",
+        "table": "EJ131",
         "format": "JSON",
         "variables": [
-            {"code": "EJENDOMSTYPE", "values": ["Parcel/rækkehuse"]},
-            {"code": "OMRAADE", "values": ["Rudersdal"]},
+            {"code": "REGION", "values": ["084"]},        # Region Hovedstaden
+            {"code": "EJENDOMSKATE", "values": ["0111"]}, # Enfamiliehuse
+            {"code": "BNØGLE", "values": ["3"]},          # Gennemsnitspris pr. ejendom (1000 kr)
             {"code": "Tid", "values": ["*"]},
         ],
     }
-    r = requests.post(DST_API, json=payload, timeout=15)
+    r = requests.post("https://api.statbank.dk/v1/data", json=payload, timeout=30)
     r.raise_for_status()
-    data = r.json()
 
-    rows = {row["key"][2]: int(row["value"]) for row in data["data"] if row["value"] not in (None, "", ".")}
+    rows = {
+        row["key"][3]: int(row["value"])
+        for row in r.json()["data"]
+        if row["value"] not in (None, "", ".")
+    }
 
-    sorted_quarters = sorted(rows.keys())
-    latest_quarter = sorted_quarters[-1]
-    latest_price = rows[latest_quarter]
+    latest_month = sorted(rows.keys())[-1]
+    latest_price = rows[latest_month]
+    baseline_price = rows.get(BASELINE_MONTH)
 
-    baseline_price = rows.get(BASELINE_QUARTER)
+    return latest_month, latest_price, baseline_price
 
-    return latest_quarter, latest_price, baseline_price
+
+def format_month(m):
+    months = ["jan", "feb", "mar", "apr", "maj", "jun",
+              "jul", "aug", "sep", "okt", "nov", "dec"]
+    year, num = m.split("M")
+    return f"{months[int(num) - 1]} {year}"
 
 
 def send_notification(title, body):
@@ -47,24 +54,19 @@ def send_notification(title, body):
 
 
 def main():
-    quarter, latest, baseline = get_house_prices()
+    latest_month, latest, baseline = get_house_prices()
 
-    quarter_pretty = quarter.replace("K", ". kvartal ")
+    price_mio = latest / 1000
+    lines = [f"Enfamiliehuse (Region Hoved.): {price_mio:.1f} mio. kr"]
 
     if baseline:
         pct = round((latest - baseline) / baseline * 100, 1)
         sign = "+" if pct >= 0 else ""
-        body = (
-            f"Gennemsnitspris (Rudersdal): {latest:,} kr/m²\n"
-            f"Ændring siden jan 2026: {sign}{pct}%\n"
-            f"Seneste data: {quarter_pretty}"
-        ).replace(",", ".")
-    else:
-        body = (
-            f"Gennemsnitspris (Rudersdal): {latest:,} kr/m²\n"
-            f"Seneste data: {quarter_pretty}"
-        ).replace(",", ".")
+        lines.append(f"Siden jan 2026: {sign}{pct}%")
 
+    lines.append(f"Seneste data: {format_month(latest_month)}")
+
+    body = "\n".join(lines)
     send_notification("Huspriser Birkerød", body)
     print(f"Sendt:\n{body}")
 
