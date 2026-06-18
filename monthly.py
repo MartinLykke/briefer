@@ -4,7 +4,6 @@ import csv
 import json as json_module
 import requests
 
-BASELINE_MONTH = "2026M01"
 
 
 def get_house_prices():
@@ -34,11 +33,15 @@ def get_house_prices():
             except ValueError:
                 pass
 
-    latest_month = sorted(rows.keys())[-1]
+    sorted_months = sorted(rows.keys())
+    latest_month = sorted_months[-1]
     latest_price = rows[latest_month]
-    baseline_price = rows.get(BASELINE_MONTH)
 
-    return latest_month, latest_price, baseline_price
+    year, num = latest_month.split("M")
+    same_month_last_year = f"{int(year) - 1}M{num}"
+    price_last_year = rows.get(same_month_last_year)
+
+    return latest_month, latest_price, price_last_year
 
 
 def format_month(m):
@@ -63,17 +66,18 @@ def send_notification(title, body):
 
 
 def main():
-    latest_month, latest, baseline = get_house_prices()
+    latest_month, latest, price_last_year = get_house_prices()
 
     price_mio = latest / 1000
-    lines = [f"Enfamiliehuse (Region Hoved.): {price_mio:.1f} mio. kr"]
+    lines = [f"Enfamiliehuse (Reg. Hoved.): {price_mio:.1f} mio. kr"]
 
-    if baseline:
-        pct = round((latest - baseline) / baseline * 100, 1)
+    if price_last_year:
+        pct = round((latest - price_last_year) / price_last_year * 100, 1)
         sign = "+" if pct >= 0 else ""
-        lines.append(f"Siden jan 2026: {sign}{pct}%")
+        last_year_mio = price_last_year / 1000
+        lines.append(f"År-til-år: {sign}{pct}% (fra {last_year_mio:.1f} mio.)")
 
-    lines.append(f"Seneste data: {format_month(latest_month)}")
+    lines.append(f"Data: {format_month(latest_month)}")
 
     body = "\n".join(lines)
     send_notification("Huspriser Birkerød", body)
