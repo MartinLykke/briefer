@@ -66,28 +66,6 @@ DAILY_QUESTIONS = [
     "Hvad er det første skridt mod noget du drømmer om?",
 ]
 
-DINNER_IDEAS = [
-    ("Hjemmelavet burger", "Bøf, karamelliseret løg, brioche-bolle"),
-    ("Thaicurry", "Kokosmælk, grøntsager og jasminris"),
-    ("Pasta carbonara", "Ægte version med guanciale og pecorino"),
-    ("Tacos", "Stegt hakket oksekød med hjemmelavet salsa"),
-    ("Fiskefrikadeller", "Med remoulade og rugbrød"),
-    ("Wok med oksekød", "Teriyaki, broccoli og nudler"),
-    ("Pizza hjemmebagt", "Valgfrit fyld — lad Aya bestemme"),
-    ("Kylling tikka masala", "Krydret og cremet med naan"),
-    ("Linsegryde", "Vegetarisk comfort food med brød til"),
-    ("Stegt torsk", "Med beurre blanc og kogte kartofler"),
-    ("Pulled pork wraps", "Langsom-tilberedt med coleslaw"),
-    ("Grøntsagssuppe", "Sæsonens grøntsager med frisk brød"),
-    ("Risotto", "Svampe og parmesan — kræver tålmodighed"),
-    ("Kyllingefilet med ovngrøntsager", "Let og sund hverdagsmad"),
-    ("Pasta med pesto og rejer", "Klar på 20 minutter"),
-    ("Okseragout", "Simreret med rosmarin og rodfrugter"),
-    ("Blomkål helstegt", "Med tahinsauce og granatæble"),
-    ("Falafel i pita", "Med hummus, agurk og mynte-yoghurt"),
-    ("Forårsruller hjemmelavet", "Sprøde med sød chilisauce"),
-    ("Shakshuka", "Æg i krydret tomatsauce med feta"),
-]
 
 DATE_IDEAS = [
     ("Frilandsmuseet", ["sunny", "mild"], "Friluftsmuseum i Lyngby — perfekt til Aya", "15 min"),
@@ -185,15 +163,6 @@ def get_date_idea(code, temp):
     name, desc, dist = matching[idx]
     return f"📍 {name} ({dist}): {desc}"
 
-
-def get_dinner_idea():
-    today = date.today()
-    weekday = today.weekday()
-    if weekday >= 4 or _is_danish_holiday(today):
-        return None
-    idx = int(hashlib.md5(today.isoformat().encode()).hexdigest(), 16) % len(DINNER_IDEAS)
-    name, desc = DINNER_IDEAS[idx]
-    return f"🍽️ Aftensmad: {name} — {desc}"
 
 
 def calculate_streak(tasks_service):
@@ -523,9 +492,6 @@ def main():
     if date_idea:
         body_parts.append(date_idea)
 
-    dinner = get_dinner_idea()
-    if dinner:
-        body_parts.append(dinner)
 
     body_parts.append(f"💭 {get_daily_question()}")
 
