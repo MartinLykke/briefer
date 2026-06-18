@@ -17,6 +17,8 @@ def get_house_prices():
         ],
     }
     r = requests.post("https://api.statbank.dk/v1/data", json=payload, timeout=30)
+    if not r.ok:
+        print("DST fejl:", r.status_code, r.text)
     r.raise_for_status()
 
     rows = {
