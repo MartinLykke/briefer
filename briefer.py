@@ -1,6 +1,7 @@
 import os
 import json as json_module
 import requests
+from calendar import monthrange
 from datetime import datetime, timezone, timedelta, date
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -49,12 +50,70 @@ def get_clothing_hint(temp, code, wind, uv_max):
     return None
 
 
+def get_weather_alerts(times, temps, winds, precips):
+    alerts = []
+    now_hour = datetime.now().hour
+
+    def hour_of(t):
+        return int(t.split("T")[1].split(":")[0])
+
+    # Regnvarsel: første time med nedbør efter nu
+    for i, t in enumerate(times):
+        h = hour_of(t)
+        if h <= now_hour:
+            continue
+        if precips[i] >= 0.2:
+            alerts.append(f"🌧 Regn fra kl. {h}")
+            break
+
+    # Kraftig regn
+    if max(precips) >= 3:
+        alerts.append(f"⛈ Kraftig regn i dag (op til {max(precips):.0f} mm/t)")
+
+    # Varmevarsel
+    max_temp = max(temps)
+    if max_temp >= 27:
+        alerts.append(f"🌡 Varmt i dag — op til {round(max_temp)}°")
+
+    # Frostvarsel i nat (kl. 18-23)
+    night_temps = [temps[i] for i, t in enumerate(times) if hour_of(t) >= 18]
+    if night_temps and min(night_temps) < 0:
+        alerts.append(f"❄ Frost i nat ({round(min(night_temps))}°)")
+
+    # Kraftig vind
+    max_wind = max(winds)
+    if max_wind >= 15:
+        alerts.append(f"💨 Kraftig vind (op til {round(max_wind)} m/s)")
+
+    return alerts
+
+
+def last_sunday_of(year, month):
+    last_day = monthrange(year, month)[1]
+    d = date(year, month, last_day)
+    while d.weekday() != 6:
+        d -= timedelta(days=1)
+    return d
+
+
+def get_dst_alert():
+    tomorrow = date.today() + timedelta(days=1)
+    year = tomorrow.year
+    summer_time = last_sunday_of(year, 3)
+    winter_time = last_sunday_of(year, 10)
+    if tomorrow == summer_time:
+        return "⏰ I morgen skifter vi til sommertid — flyt uret 1 time frem"
+    if tomorrow == winter_time:
+        return "⏰ I morgen skifter vi til vintertid — flyt uret 1 time tilbage"
+    return None
+
+
 def get_weather():
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": BIRKEROD_LAT,
         "longitude": BIRKEROD_LON,
-        "hourly": "temperature_2m,weathercode,windspeed_10m,uv_index",
+        "hourly": "temperature_2m,weathercode,windspeed_10m,uv_index,precipitation",
         "timezone": "Europe/Copenhagen",
         "forecast_days": 1,
     }
@@ -67,6 +126,7 @@ def get_weather():
     codes = hourly["weathercode"]
     winds = hourly["windspeed_10m"]
     uvs = hourly["uv_index"]
+    precips = hourly["precipitation"]
 
     def pick_hour(h):
         suffix = f"T{h:02d}:00"
@@ -87,7 +147,9 @@ def get_weather():
         condition = "Blæsende"
 
     hint = get_clothing_hint(temp_7, code, wind, uv_max)
-    return temp_7, temp_14, condition, hint
+    alerts = get_weather_alerts(times, temps, winds, precips)
+
+    return temp_7, temp_14, condition, hint, alerts
 
 
 def build_services():
@@ -155,21 +217,18 @@ def get_all_events(service):
     )
 
     today = date.today()
-    weekday = today.weekday()  # 0=mandag, 6=søndag
+    weekday = today.weekday()
 
     lines = []
 
-    # Dagens begivenheder
     today_events = fetch_events(service, main_id, today)
     if today_events:
         lines += today_events
 
-    # Fødselsdage i dag
     if birthday_id:
         birthdays = fetch_events(service, birthday_id, today)
         lines += [f"🎂 {e.split(' ', 1)[1]}" if ' ' in e else e for e in birthdays]
 
-    # Mandag: vis hele ugen
     if weekday == 0:
         DAY_NAMES = ["Man", "Tir", "Ons", "Tor", "Fre", "Lør", "Søn"]
         lines.append("— Denne uge —")
@@ -179,18 +238,13 @@ def get_all_events(service):
             for e in day_events:
                 lines.append(f"{DAY_NAMES[day.weekday()]} {e}")
 
-    # Øvrige hverdage: vis weekenden
     elif weekday < 5:
         days_to_sat = 5 - weekday
         saturday = today + timedelta(days=days_to_sat)
         sunday = saturday + timedelta(days=1)
-
-        sat_events = fetch_events(service, main_id, saturday)
-        sun_events = fetch_events(service, main_id, sunday)
-
-        for e in sat_events:
+        for e in fetch_events(service, main_id, saturday):
             lines.append(f"Lør {e}")
-        for e in sun_events:
+        for e in fetch_events(service, main_id, sunday):
             lines.append(f"Søn {e}")
 
     return lines
@@ -211,19 +265,21 @@ def send_notification(title, body):
 
 
 def main():
-    temp_7, temp_14, condition, hint = get_weather()
+    temp_7, temp_14, condition, hint, alerts = get_weather()
     cal_service, tasks_service = build_services()
-    lines = get_all_events(cal_service)
+    event_lines = get_all_events(cal_service)
+    task_lines = [f"☑ {t}" for t in get_tasks(tasks_service)]
 
-    tasks = get_tasks(tasks_service)
-    if tasks:
-        lines += [f"☑ {t}" for t in tasks]
+    dst = get_dst_alert()
+    if dst:
+        alerts.append(dst)
 
     title = f"{temp_7}° {temp_14}° · {condition}"
     if hint:
         title += f" · {hint}"
 
-    body = " · ".join(lines) if lines else "Ingen begivenheder i dag"
+    body_parts = alerts + event_lines + task_lines
+    body = "\n".join(body_parts) if body_parts else "Ingen begivenheder i dag"
 
     send_notification(title, body)
     print(f"Sendt: {title}\n{body}")
