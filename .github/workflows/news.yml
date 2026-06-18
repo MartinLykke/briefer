@@ -1,8 +1,6 @@
 name: Briefer Anthropic nyheder
 
 on:
-  schedule:
-    - cron: "0 7 * * 1"  # Mandag kl. 09:00 dansk tid
   workflow_dispatch:
 
 jobs:
