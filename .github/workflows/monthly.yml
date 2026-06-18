@@ -1,0 +1,24 @@
+name: Briefer månedlig
+
+on:
+  schedule:
+    - cron: "0 5 1 * *"  # Den 1. i måneden kl. 07:00 dansk tid
+  workflow_dispatch:
+
+jobs:
+  monthly-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer afhængigheder
+        run: pip install -r requirements.txt
+
+      - name: Send månedlig rapport
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python monthly.py
