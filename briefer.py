@@ -163,12 +163,10 @@ def get_all_events(service):
         sat_events = fetch_events(service, main_id, saturday)
         sun_events = fetch_events(service, main_id, sunday)
 
-        if sat_events or sun_events:
-            lines.append("— Weekend —")
-            for e in sat_events:
-                lines.append(f"Lør {e}")
-            for e in sun_events:
-                lines.append(f"Søn {e}")
+        for e in sat_events:
+            lines.append(f"Lør {e}")
+        for e in sun_events:
+            lines.append(f"Søn {e}")
 
     return lines
 
