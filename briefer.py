@@ -1,15 +1,16 @@
 import os
 import json as json_module
 import requests
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 BIRKEROD_LAT = 55.851
 BIRKEROD_LON = 12.431
+CALENDAR_NAME = "Martin og Rikke fælles kalender"
+EXCLUDED_EVENTS = {"R arbejde"}
 
-# WMO weather code → dansk beskrivelse
 WMO_CODES = {
     0: "Solrigt",
     1: "Mest klart", 2: "Delvist skyet", 3: "Overskyet",
@@ -47,30 +48,41 @@ def get_weather():
     params = {
         "latitude": BIRKEROD_LAT,
         "longitude": BIRKEROD_LON,
-        "current": "temperature_2m,weathercode,windspeed_10m",
+        "hourly": "temperature_2m,weathercode,windspeed_10m",
         "timezone": "Europe/Copenhagen",
+        "forecast_days": 1,
     }
     r = requests.get(url, params=params, timeout=10)
     r.raise_for_status()
-    data = r.json()["current"]
+    hourly = r.json()["hourly"]
 
-    temp = round(data["temperature_2m"])
-    code = data["weathercode"]
-    wind = data["windspeed_10m"]
+    times = hourly["time"]
+    temps = hourly["temperature_2m"]
+    codes = hourly["weathercode"]
+    winds = hourly["windspeed_10m"]
+
+    def pick_hour(h):
+        suffix = f"T{h:02d}:00"
+        idx = next((i for i, t in enumerate(times) if t.endswith(suffix)), 0)
+        return idx
+
+    idx_7 = pick_hour(7)
+    idx_14 = pick_hour(14)
+
+    temp_7 = round(temps[idx_7])
+    temp_14 = round(temps[idx_14])
+    code = codes[idx_7]
+    wind = winds[idx_7]
 
     condition = WMO_CODES.get(code, "Ukendt")
-
     if wind >= 10 and code in (0, 1, 2, 3):
         condition = "Blæsende"
 
-    hint = get_clothing_hint(temp, code, wind)
-    return temp, condition, hint
+    hint = get_clothing_hint(temp_7, code, wind)
+    return temp_7, temp_14, condition, hint
 
 
-CALENDAR_NAME = "Martin og Rikke fælles kalender"
-
-
-def get_calendar_events():
+def build_service():
     creds = Credentials(
         token=None,
         refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
@@ -79,47 +91,80 @@ def get_calendar_events():
         token_uri="https://oauth2.googleapis.com/token",
     )
     creds.refresh(Request())
+    return build("calendar", "v3", credentials=creds)
 
-    service = build("calendar", "v3", credentials=creds)
 
-    calendars = service.calendarList().list().execute()
-    print("Tilgængelige kalendere:", [c["summary"] for c in calendars["items"]])
-    calendar_id = next(
-        (c["id"] for c in calendars["items"] if c["summary"] == CALENDAR_NAME),
-        "primary",
-    )
-    print(f"Bruger kalender: {calendar_id}")
-
+def fetch_events(service, calendar_id, day):
     tz = timezone(timedelta(hours=2))
-    now = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
-    end = now.replace(hour=23, minute=59, second=59)
-
+    start = datetime(day.year, day.month, day.day, 0, 0, 0, tzinfo=tz)
+    end = datetime(day.year, day.month, day.day, 23, 59, 59, tzinfo=tz)
     result = service.events().list(
         calendarId=calendar_id,
-        timeMin=now.isoformat(),
+        timeMin=start.isoformat(),
         timeMax=end.isoformat(),
         singleEvents=True,
         orderBy="startTime",
     ).execute()
-
     events = []
     for e in result.get("items", []):
-        if e.get("summary") == "R arbejde":
+        if e.get("summary") in EXCLUDED_EVENTS:
             continue
-        start = e["start"].get("dateTime", e["start"].get("date", ""))
-        if "T" in start:
-            time_str = datetime.fromisoformat(start).strftime("%H:%M")
-        else:
-            time_str = "Hele dagen"
+        start_val = e["start"].get("dateTime", e["start"].get("date", ""))
+        time_str = datetime.fromisoformat(start_val).strftime("%H:%M") if "T" in start_val else "Hele dagen"
         events.append(f"{time_str} {e['summary']}")
-
     return events
 
 
-def send_notification(weather_line, events_body):
+def get_all_events(service):
+    calendars = service.calendarList().list().execute()
+    calendar_map = {c["summary"]: c["id"] for c in calendars["items"]}
+
+    main_id = calendar_map.get(CALENDAR_NAME, "primary")
+
+    birthday_id = next(
+        (cid for name, cid in calendar_map.items()
+         if "ødselsdage" in name or "irthday" in name.lower()),
+        None,
+    )
+
+    today = date.today()
+    weekday = today.weekday()  # 0=mandag, 6=søndag
+
+    lines = []
+
+    # Dagens begivenheder
+    today_events = fetch_events(service, main_id, today)
+    if today_events:
+        lines += today_events
+
+    # Fødselsdage i dag
+    if birthday_id:
+        birthdays = fetch_events(service, birthday_id, today)
+        lines += [f"🎂 {e.split(' ', 1)[1]}" if ' ' in e else e for e in birthdays]
+
+    # Weekendens begivenheder (kun på hverdage)
+    if weekday < 5:
+        days_to_sat = 5 - weekday
+        saturday = today + timedelta(days=days_to_sat)
+        sunday = saturday + timedelta(days=1)
+
+        sat_events = fetch_events(service, main_id, saturday)
+        sun_events = fetch_events(service, main_id, sunday)
+
+        if sat_events or sun_events:
+            lines.append("— Weekend —")
+            for e in sat_events:
+                lines.append(f"Lør {e}")
+            for e in sun_events:
+                lines.append(f"Søn {e}")
+
+    return lines
+
+
+def send_notification(title, body):
     topic = os.environ["NTFY_TOPIC"]
     payload = json_module.dumps(
-        {"topic": topic, "title": weather_line, "message": events_body},
+        {"topic": topic, "title": title, "message": body},
         ensure_ascii=False,
     ).encode("utf-8")
     requests.post(
@@ -131,20 +176,18 @@ def send_notification(weather_line, events_body):
 
 
 def main():
-    temp, condition, hint = get_weather()
-    events = get_calendar_events()
+    temp_7, temp_14, condition, hint = get_weather()
+    service = build_service()
+    lines = get_all_events(service)
 
-    weather_line = f"{temp}° · {condition}"
+    title = f"{temp_7}° {temp_14}° · {condition}"
     if hint:
-        weather_line += f" · {hint}"
+        title += f" · {hint}"
 
-    if events:
-        events_body = "\n".join(events)
-    else:
-        events_body = "Ingen begivenheder i dag"
+    body = "\n".join(lines) if lines else "Ingen begivenheder i dag"
 
-    send_notification(weather_line, events_body)
-    print(f"Sendt: {weather_line}\n{events_body}")
+    send_notification(title, body)
+    print(f"Sendt: {title}\n{body}")
 
 
 if __name__ == "__main__":
