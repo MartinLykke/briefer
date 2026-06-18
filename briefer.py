@@ -431,32 +431,9 @@ def get_all_events(service):
     return lines
 
 
-def weather_tag(code):
-    if code == 0:
-        return "sunny"
-    if code in (1, 2):
-        return "partly_sunny"
-    if code == 3:
-        return "cloud"
-    if code in (45, 48):
-        return "fog"
-    if code in (51, 53, 55, 56, 57):
-        return "droplet"
-    if code in (61, 63, 65, 66, 67, 80, 81, 82):
-        return "umbrella"
-    if code in (71, 73, 75, 77, 85, 86):
-        return "snowflake"
-    if code in (95, 96, 99):
-        return "zap"
-    return "sunny"
-
-
-def send_notification(title, body, tag=None):
+def send_notification(title, body):
     topic = os.environ["NTFY_TOPIC"]
-    data = {"topic": topic, "title": title, "message": body}
-    if tag:
-        data["tags"] = [tag]
-    payload = json_module.dumps(data, ensure_ascii=False).encode("utf-8")
+    payload = json_module.dumps({"topic": topic, "title": title, "message": body}, ensure_ascii=False).encode("utf-8")
     requests.post(
         "https://ntfy.sh/",
         data=payload,
@@ -497,7 +474,7 @@ def main():
 
     body = "\n".join(body_parts) if body_parts else "Ingen begivenheder i dag"
 
-    send_notification(title, body, tag=weather_tag(code))
+    send_notification(title, body)
     print(f"Sendt: {title}\n{body}")
 
 
