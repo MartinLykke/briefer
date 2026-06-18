@@ -4,8 +4,10 @@ import requests
 from datetime import date, timedelta
 
 BIRTHDAYS = [
-    ("Rikke", date(1997, 11, 15)),
-    ("Aya",   date(2025,  5, 29)),
+    ("Rikke",  date(1997, 11, 15)),
+    ("Aya",    date(2025,  5, 29)),
+    ("Farmor", date(1900,  9,  1)),  # år ukendt
+    ("Farfar", date(1900,  5, 25)),  # år ukendt
 ]
 
 REMIND_AT_DAYS = [0, 3, 7]
@@ -27,8 +29,12 @@ def check_birthdays():
         days_until = (this_year - today).days
 
         if days_until == 0:
-            age = today.year - bday.year
-            messages.append((f"Tillykke til {name}!", f"Det er {name}s {age}-årsdag i dag 🎂"))
+            if bday.year != 1900:
+                age = today.year - bday.year
+                body = f"Det er {name}s {age}-årsdag i dag 🎂"
+            else:
+                body = f"Det er {name}s fødselsdag i dag 🎂"
+            messages.append((f"Tillykke til {name}!", body))
         elif days_until == 3:
             messages.append(("Husk:", f"{name}s fødselsdag om 3 dage · {this_year.day}. {DANISH_MONTHS[this_year.month]}"))
         elif days_until == 7:
