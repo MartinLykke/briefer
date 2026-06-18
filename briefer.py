@@ -104,6 +104,8 @@ def get_calendar_events():
 
     events = []
     for e in result.get("items", []):
+        if e.get("summary") == "R arbejde":
+            continue
         start = e["start"].get("dateTime", e["start"].get("date", ""))
         if "T" in start:
             time_str = datetime.fromisoformat(start).strftime("%H:%M")
@@ -116,12 +118,11 @@ def get_calendar_events():
 
 def send_notification(weather_line, events_body):
     topic = os.environ["NTFY_TOPIC"]
-    full_body = f"{weather_line}\n\n{events_body}"
     requests.post(
         f"https://ntfy.sh/{topic}",
-        data=full_body.encode("utf-8"),
+        data=events_body.encode("utf-8"),
         headers={
-            "Title": "Briefer",
+            "Title": weather_line,
             "Content-Type": "text/plain; charset=utf-8",
         },
         timeout=10,
