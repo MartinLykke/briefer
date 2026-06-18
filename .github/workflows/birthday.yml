@@ -16,9 +16,12 @@ jobs:
           python-version: "3.12"
 
       - name: Installer afhængigheder
-        run: pip install requests
+        run: pip install -r requirements.txt
 
       - name: Tjek fødselsdage
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
         run: python birthday.py
