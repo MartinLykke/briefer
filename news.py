@@ -1,42 +1,38 @@
 import os
 import json as json_module
 import requests
-from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone, timedelta
 
-NEWS_URL = "https://www.anthropic.com/news"
+SITEMAP_URL = "https://www.anthropic.com/sitemap.xml"
 
 
 def fetch_anthropic_news():
-    r = requests.get(NEWS_URL, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+    r = requests.get(SITEMAP_URL, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
     r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
 
-    cutoff = datetime.now() - timedelta(days=7)
+    root = ET.fromstring(r.text)
+    ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+
     articles = []
-
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if not href.startswith("/news/"):
+    for url in root.findall("sm:url", ns):
+        loc = url.findtext("sm:loc", "", ns)
+        lastmod = url.findtext("sm:lastmod", "", ns)
+        if "/news/" not in loc or not lastmod:
             continue
-
-        texts = [p.get_text(strip=True) for p in a.find_all("p")]
-        if len(texts) < 2:
-            continue
-
-        date_str = texts[0]
-        title = texts[-1]
-
         try:
-            pub_date = datetime.strptime(date_str, "%b %d, %Y")
-            if pub_date < cutoff:
+            dt = datetime.fromisoformat(lastmod.replace("Z", "+00:00"))
+            if dt < cutoff:
                 continue
         except ValueError:
-            pass
+            continue
 
-        if title and title not in [x[0] for x in articles]:
-            articles.append((title, date_str))
+        slug = loc.rstrip("/").split("/news/")[-1]
+        title = slug.replace("-", " ").title()
+        articles.append((title, dt.strftime("%d/%m")))
 
+    articles.sort(key=lambda x: x[1], reverse=True)
     return articles
 
 
