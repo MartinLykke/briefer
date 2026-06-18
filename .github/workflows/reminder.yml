@@ -2,7 +2,7 @@ name: Briefer påmindelser
 
 on:
   schedule:
-    - cron: "*/15 * * * *"  # Hvert kvarter
+    - cron: "0 * * * *"  # Hver time
   workflow_dispatch:
 
 jobs:

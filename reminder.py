@@ -7,7 +7,7 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 CALENDAR_NAME = "Martin og Rikke fælles kalender"
-REMINDER_WINDOW_MINUTES = 20
+REMINDER_WINDOW_MINUTES = 120
 
 
 def build_service():
