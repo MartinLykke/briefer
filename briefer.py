@@ -114,6 +114,7 @@ def get_weather():
         "latitude": BIRKEROD_LAT,
         "longitude": BIRKEROD_LON,
         "hourly": "temperature_2m,weathercode,windspeed_10m,uv_index,precipitation",
+        "wind_speed_unit": "ms",
         "timezone": "Europe/Copenhagen",
         "forecast_days": 1,
     }
