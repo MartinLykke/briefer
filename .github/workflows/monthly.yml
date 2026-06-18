@@ -20,6 +20,9 @@ jobs:
       - name: Installer afhængigheder
         run: pip install -r requirements.txt
 
+      - name: Debug DST tabelstruktur
+        run: python dst_debug.py
+
       - name: Send månedlig rapport
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
