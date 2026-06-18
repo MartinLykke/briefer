@@ -112,7 +112,11 @@ def fetch_events(service, calendar_id, day):
             continue
         display = summary.rstrip("!")
         start_val = e["start"].get("dateTime", e["start"].get("date", ""))
-        time_str = datetime.fromisoformat(start_val).strftime("%H:%M") if "T" in start_val else "Hele dagen"
+        if "T" in start_val:
+            dt = datetime.fromisoformat(start_val)
+            time_str = str(dt.hour) if dt.minute == 0 else dt.strftime("%H:%M")
+        else:
+            time_str = "Heldags"
         events.append(f"{time_str} {display}")
     return events
 
@@ -194,7 +198,7 @@ def main():
     if hint:
         title += f" · {hint}"
 
-    body = "\n".join(lines) if lines else "Ingen begivenheder i dag"
+    body = " · ".join(lines) if lines else "Ingen begivenheder i dag"
 
     send_notification(title, body)
     print(f"Sendt: {title}\n{body}")
