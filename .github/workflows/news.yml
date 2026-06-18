@@ -1,0 +1,24 @@
+name: Briefer Anthropic nyheder
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"  # Mandag kl. 09:00 dansk tid
+  workflow_dispatch:
+
+jobs:
+  anthropic-news:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer afhængigheder
+        run: pip install -r requirements.txt
+
+      - name: Send Anthropic nyheder
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python news.py
