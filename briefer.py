@@ -63,10 +63,12 @@ def get_calendar_events():
     service = build("calendar", "v3", credentials=creds)
 
     calendars = service.calendarList().list().execute()
+    print("Tilgængelige kalendere:", [c["summary"] for c in calendars["items"]])
     calendar_id = next(
         (c["id"] for c in calendars["items"] if c["summary"] == CALENDAR_NAME),
         "primary",
     )
+    print(f"Bruger kalender: {calendar_id}")
 
     tz = timezone(timedelta(hours=2))
     now = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
