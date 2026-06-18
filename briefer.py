@@ -107,11 +107,13 @@ def fetch_events(service, calendar_id, day):
     ).execute()
     events = []
     for e in result.get("items", []):
-        if e.get("summary") in EXCLUDED_EVENTS:
+        summary = e.get("summary", "")
+        if summary in EXCLUDED_EVENTS:
             continue
+        display = summary.rstrip("!")
         start_val = e["start"].get("dateTime", e["start"].get("date", ""))
         time_str = datetime.fromisoformat(start_val).strftime("%H:%M") if "T" in start_val else "Hele dagen"
-        events.append(f"{time_str} {e['summary']}")
+        events.append(f"{time_str} {display}")
     return events
 
 
@@ -142,8 +144,18 @@ def get_all_events(service):
         birthdays = fetch_events(service, birthday_id, today)
         lines += [f"🎂 {e.split(' ', 1)[1]}" if ' ' in e else e for e in birthdays]
 
-    # Weekendens begivenheder (kun på hverdage)
-    if weekday < 5:
+    # Mandag: vis hele ugen
+    if weekday == 0:
+        DAY_NAMES = ["Man", "Tir", "Ons", "Tor", "Fre", "Lør", "Søn"]
+        lines.append("— Denne uge —")
+        for i in range(1, 7):
+            day = today + timedelta(days=i)
+            day_events = fetch_events(service, main_id, day)
+            for e in day_events:
+                lines.append(f"{DAY_NAMES[day.weekday()]} {e}")
+
+    # Øvrige hverdage: vis weekenden
+    elif weekday < 5:
         days_to_sat = 5 - weekday
         saturday = today + timedelta(days=days_to_sat)
         sunday = saturday + timedelta(days=1)
