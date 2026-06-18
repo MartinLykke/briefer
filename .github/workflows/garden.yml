@@ -1,0 +1,28 @@
+name: Haven Status
+
+on:
+  schedule:
+    - cron: "0 5 * * *"  # Dagligt kl. 07:00 dansk sommertid (UTC+2)
+  workflow_dispatch:
+
+jobs:
+  garden-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer afhængigheder
+        run: pip install -r requirements.txt
+
+      - name: Kør haven automation
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          RUN_EVERY_N_DAYS: "2"
+        run: python garden.py

@@ -20,6 +20,7 @@ Briefer sender automatisk daglige notifikationer via [ntfy.sh](https://ntfy.sh) 
 | Fil | Formål | Schedule |
 |-----|--------|----------|
 | `briefer.py` | Hovedbriefing | Dagligt kl. 05:00 UTC (07:00 DK sommertid) |
+| `garden.py` | Have automation — vejr + sæsonalitet | Hver 2. dag kl. 05:00 UTC |
 | `news.py` | Anthropic nyheder fra sitemap.xml | Ugentligt |
 | `weekly.py` | Ugeopsummering med opgave-tally | Ugentligt |
 | `birthday.py` | Fødselsdag-påmindelser | Dagligt |
@@ -72,6 +73,30 @@ python briefer.py    # Test daglig briefing
 python news.py       # Test nyheder
 python weekly.py     # Test ugeopsummering
 ```
+
+## Have Automation 🌱
+
+`garden.py` sender hver 2. dag smarte havetips baseret på vejr og sæsonalitet:
+
+**Hvad den siger:**
+- **Kritiske advarsler** — Frost kommende? Tørke? Helt regn? Varme-bølge?
+- **Anbefalede tasks** — "Nu kan du plantte basilikum" eller "Græsseeding ideelt i dag"
+- **Vejrdetaljer** — Temperatur-range for optimal timing
+
+**Hvordan det virker:**
+1. Henter 7-dages vejrprognose fra Open-Meteo
+2. Matcher dagens vejr mod planternes krav (temperatur, tørhed, måned)
+3. Udsender advarsler hvis kritisk vejr nærmer sig
+4. Sender kun notifikation hver 2. dag (undgår information overload)
+
+**Planter & tasks:**
+- Græsseeding (april-september, 10-20°C, tørt)
+- Græsklipning (april-oktober, tørt)
+- Basilikum-planting & stell (med frost-alert!)
+- Grøntsager-sæd (april-juli)
+- Blomster-planting (maj-august)
+
+Kan let udvides med flere planter via `GARDEN_TASKS` liste.
 
 ## Tilpasning
 
