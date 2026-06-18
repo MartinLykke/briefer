@@ -47,6 +47,9 @@ def get_weather():
     return temp, condition
 
 
+CALENDAR_NAME = "Martin og Rikke fælles kalender"
+
+
 def get_calendar_events():
     creds = Credentials(
         token=None,
@@ -59,12 +62,18 @@ def get_calendar_events():
 
     service = build("calendar", "v3", credentials=creds)
 
+    calendars = service.calendarList().list().execute()
+    calendar_id = next(
+        (c["id"] for c in calendars["items"] if c["summary"] == CALENDAR_NAME),
+        "primary",
+    )
+
     tz = timezone(timedelta(hours=2))
     now = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     end = now.replace(hour=23, minute=59, second=59)
 
     result = service.events().list(
-        calendarId="primary",
+        calendarId=calendar_id,
         timeMin=now.isoformat(),
         timeMax=end.isoformat(),
         singleEvents=True,
@@ -87,8 +96,7 @@ def send_notification(title, body):
     topic = os.environ["NTFY_TOPIC"]
     requests.post(
         f"https://ntfy.sh/{topic}",
-        data=body.encode("utf-8"),
-        headers={"Title": title},
+        json={"topic": topic, "title": title, "message": body},
         timeout=10,
     )
 
