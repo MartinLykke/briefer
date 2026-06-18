@@ -1,5 +1,5 @@
 import os
-import json
+import json as json_module
 import requests
 from datetime import datetime, timezone, timedelta
 from google.oauth2.credentials import Credentials
@@ -118,13 +118,14 @@ def get_calendar_events():
 
 def send_notification(weather_line, events_body):
     topic = os.environ["NTFY_TOPIC"]
+    payload = json_module.dumps(
+        {"topic": topic, "title": weather_line, "message": events_body},
+        ensure_ascii=False,
+    ).encode("utf-8")
     requests.post(
-        f"https://ntfy.sh/{topic}",
-        data=events_body.encode("utf-8"),
-        headers={
-            "Title": weather_line,
-            "Content-Type": "text/plain; charset=utf-8",
-        },
+        "https://ntfy.sh/",
+        data=payload,
+        headers={"Content-Type": "application/json; charset=utf-8"},
         timeout=10,
     )
 
