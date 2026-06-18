@@ -94,11 +94,16 @@ def get_calendar_events():
     return events
 
 
-def send_notification(title, body):
+def send_notification(weather_line, events_body):
     topic = os.environ["NTFY_TOPIC"]
+    full_body = f"{weather_line}\n\n{events_body}"
     requests.post(
         f"https://ntfy.sh/{topic}",
-        json={"topic": topic, "title": title, "message": body},
+        data=full_body.encode("utf-8"),
+        headers={
+            "Title": "Briefer",
+            "Content-Type": "text/plain; charset=utf-8",
+        },
         timeout=10,
     )
 
@@ -107,15 +112,15 @@ def main():
     temp, condition = get_weather()
     events = get_calendar_events()
 
-    title = f"{temp}° · {condition}"
+    weather_line = f"{temp}° · {condition}"
 
     if events:
-        body = "\n".join(events)
+        events_body = "\n".join(events)
     else:
-        body = "Ingen begivenheder i dag"
+        events_body = "Ingen begivenheder i dag"
 
-    send_notification(title, body)
-    print(f"Sendt: {title}\n{body}")
+    send_notification(weather_line, events_body)
+    print(f"Sendt: {weather_line}\n{events_body}")
 
 
 if __name__ == "__main__":
