@@ -23,7 +23,7 @@ WMO_CODES = {
 }
 
 
-def get_clothing_hint(temp, code, wind):
+def get_clothing_hint(temp, code, wind, uv_max):
     if code in (71, 73, 75):
         return "Husk varmt tøj og gode støvler"
     if code in (95, 96, 99):
@@ -38,8 +38,14 @@ def get_clothing_hint(temp, code, wind):
         return "Tag en jakke på"
     if wind >= 10:
         return "Tag en vindjakke på"
-    if temp >= 24:
-        return "Husk solcreme"
+    if uv_max >= 11:
+        return f"UV ekstrem ({uv_max}) · Hold huden tildækket"
+    if uv_max >= 8:
+        return f"Solcreme nødvendigt · UV meget høj ({uv_max})"
+    if uv_max >= 6:
+        return f"Husk solcreme · UV høj ({uv_max})"
+    if uv_max >= 3:
+        return f"SPF 30 anbefales · UV moderat ({uv_max})"
     return None
 
 
@@ -48,7 +54,7 @@ def get_weather():
     params = {
         "latitude": BIRKEROD_LAT,
         "longitude": BIRKEROD_LON,
-        "hourly": "temperature_2m,weathercode,windspeed_10m",
+        "hourly": "temperature_2m,weathercode,windspeed_10m,uv_index",
         "timezone": "Europe/Copenhagen",
         "forecast_days": 1,
     }
@@ -60,6 +66,7 @@ def get_weather():
     temps = hourly["temperature_2m"]
     codes = hourly["weathercode"]
     winds = hourly["windspeed_10m"]
+    uvs = hourly["uv_index"]
 
     def pick_hour(h):
         suffix = f"T{h:02d}:00"
@@ -73,16 +80,17 @@ def get_weather():
     temp_14 = round(temps[idx_14])
     code = codes[idx_7]
     wind = winds[idx_7]
+    uv_max = round(max(uvs))
 
     condition = WMO_CODES.get(code, "Ukendt")
     if wind >= 10 and code in (0, 1, 2, 3):
         condition = "Blæsende"
 
-    hint = get_clothing_hint(temp_7, code, wind)
+    hint = get_clothing_hint(temp_7, code, wind, uv_max)
     return temp_7, temp_14, condition, hint
 
 
-def build_service():
+def build_services():
     creds = Credentials(
         token=None,
         refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
@@ -91,7 +99,20 @@ def build_service():
         token_uri="https://oauth2.googleapis.com/token",
     )
     creds.refresh(Request())
-    return build("calendar", "v3", credentials=creds)
+    cal = build("calendar", "v3", credentials=creds)
+    tasks = build("tasks", "v1", credentials=creds)
+    return cal, tasks
+
+
+def get_tasks(tasks_service):
+    today = date.today().isoformat() + "T23:59:59Z"
+    result = tasks_service.tasks().list(
+        tasklist="@default",
+        dueMax=today,
+        showCompleted=False,
+        showHidden=False,
+    ).execute()
+    return [t["title"] for t in result.get("items", []) if t.get("title")]
 
 
 def fetch_events(service, calendar_id, day):
@@ -191,8 +212,12 @@ def send_notification(title, body):
 
 def main():
     temp_7, temp_14, condition, hint = get_weather()
-    service = build_service()
-    lines = get_all_events(service)
+    cal_service, tasks_service = build_services()
+    lines = get_all_events(cal_service)
+
+    tasks = get_tasks(tasks_service)
+    if tasks:
+        lines += [f"☑ {t}" for t in tasks]
 
     title = f"{temp_7}° {temp_14}° · {condition}"
     if hint:
