@@ -22,6 +22,26 @@ WMO_CODES = {
 }
 
 
+def get_clothing_hint(temp, code, wind):
+    if code in (71, 73, 75):
+        return "Husk varmt tøj og gode støvler"
+    if code in (95, 96, 99):
+        return "Bliv indendørs hvis muligt"
+    if code in (51, 53, 55, 61, 63, 65, 80, 81, 82):
+        return "Husk paraply"
+    if temp <= 0:
+        return "Klæd dig godt på — frostvejr"
+    if temp <= 8:
+        return "Tag en varm jakke på"
+    if temp <= 14:
+        return "Tag en jakke på"
+    if wind >= 10:
+        return "Tag en vindjakke på"
+    if temp >= 24:
+        return "Husk solcreme"
+    return None
+
+
 def get_weather():
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
@@ -40,11 +60,11 @@ def get_weather():
 
     condition = WMO_CODES.get(code, "Ukendt")
 
-    # Override til "Blæsende" hvis vinden er kraftig og vejret ellers er fint
     if wind >= 10 and code in (0, 1, 2, 3):
         condition = "Blæsende"
 
-    return temp, condition
+    hint = get_clothing_hint(temp, code, wind)
+    return temp, condition, hint
 
 
 CALENDAR_NAME = "Martin og Rikke fælles kalender"
@@ -109,10 +129,12 @@ def send_notification(weather_line, events_body):
 
 
 def main():
-    temp, condition = get_weather()
+    temp, condition, hint = get_weather()
     events = get_calendar_events()
 
     weather_line = f"{temp}° · {condition}"
+    if hint:
+        weather_line += f" · {hint}"
 
     if events:
         events_body = "\n".join(events)
