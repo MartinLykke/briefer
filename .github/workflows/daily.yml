@@ -2,7 +2,7 @@ name: Briefer
 
 on:
   schedule:
-    - cron: "0 5 * * *"  # Kl. 07:00 dansk sommertid (UTC+2)
+    - cron: "0 5 * * *"  # Kl. 07:00 dansk sommertid (UTC+2) — hver dag
   workflow_dispatch:      # Kan også køres manuelt
 
 jobs:
