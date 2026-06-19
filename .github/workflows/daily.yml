@@ -1,4 +1,4 @@
-name: Briefer
+name: Daglig morgen-briefing
 
 on:
   schedule:
