@@ -2,7 +2,7 @@ name: Briefer påmindelser
 
 on:
   schedule:
-    - cron: "0 5 * * *"  # Kl. 07:00 dansk sommertid (UTC+2)
+    - cron: "0 * * * *"  # Hver time
   workflow_dispatch:
 
 jobs:
